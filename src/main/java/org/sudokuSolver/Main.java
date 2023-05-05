@@ -1,8 +1,26 @@
 package org.sudokuSolver;
 
+import java.util.Scanner;
+
 public class Main {
     public static void main(String[] args) {
-        String testGame = "8..2.4.19.7.86...2.9......87.8..2...............9..8.34......7.2...41.9.95.6.7..4";
-        SudokuSolver solver = new SudokuSolver(testGame);
+        Scanner scan = new Scanner(System.in);
+        String sudokuString = getSudokuString(scan);
+
+//        String testGame = "...9....3.....28....9..4572921....38....9....37....9641678..2....37.....2....9...";
+        Sudoku sudoku = new Sudoku(sudokuString);
+        sudoku.solve();
+    }
+
+    private static String getSudokuString(Scanner scan) {
+        while (true) {
+            System.out.println("Please enter a Sudoku string:");
+            String response = scan.nextLine();
+
+            if (response.length() == 81)
+                return response;
+            else
+                System.out.println("The string should have 81 characters.");
+        }
     }
 }
