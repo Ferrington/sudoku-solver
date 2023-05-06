@@ -1,19 +1,25 @@
 package org.sudokuSolver;
 
 import java.awt.Point;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 public class Sudoku {
     private Cell[][] grid;
     long recursionCount = 0;
+    List<LogEntry> log;
 
     final private boolean CANDIDATE = false;
     final private boolean GIVEN = true;
     final private int EMPTY = 0;
 
+
+
     Sudoku(String sudokuString) {
         grid = createGridFromString(sudokuString);
+        log = new ArrayList<>();
         printGrid();
     }
 
@@ -30,6 +36,7 @@ public class Sudoku {
                 printGrid();
             } else {
                 printGridWithCandidates();
+                printLog();
             }
         } else {
             System.out.println("Either you entered an invalid string or the solver failed.");
@@ -44,14 +51,33 @@ public class Sudoku {
         while (cellPlaced) {
             cellPlaced = false;
 
-            // this removes candidates from the candidate list in each cell
-            // where they are clearly ruled out by a given value
-            // if a number is placed into a cell, we continue to eliminate more candidates
-            if (eliminateCandidates(grid)) {
+            /*
+             This removes values from the candidate list in each cell
+             when they are clearly ruled out by a given value.
+             If there is one candidate remaining, a number is placed into a cell
+             and we continue to eliminate more candidates.
+             */
+            Point elimCoords = eliminateCandidates(grid);
+            if (elimCoords != null) {
                 cellPlaced = true;
+                log.add(new LogEntry(
+                    elimCoords,
+                    grid[elimCoords.y][elimCoords.x].getValue(),
+            "1) Eliminate Candidates / Last Possible Number"
+                ));
                 continue;
             }
 
+            Point hiddenSinglesCoords = hiddenSingles(grid);
+            if (hiddenSinglesCoords != null) {
+                cellPlaced = true;
+                log.add(new LogEntry(
+                    hiddenSinglesCoords,
+                    grid[hiddenSinglesCoords.y][hiddenSinglesCoords.x].getValue(),
+            "2) Hidden Single"
+                ));
+                continue;
+            }
             // hidden singles
             // naked pairs/triples
             // hidden pairs/triples
@@ -62,66 +88,67 @@ public class Sudoku {
         return grid;
     }
 
-    private boolean eliminateCandidates(Cell[][] grid) {
-        boolean placedNumber = false;
+    private Point hiddenSingles(Cell[][] grid) {
+        return null;
+    }
 
+    private Point eliminateCandidates(Cell[][] grid) {
         for (int y = 0; y < grid.length; y++) {
             for (int x = 0; x < grid[y].length; x++) {
                 int value = grid[y][x].getValue();
                 if (value != EMPTY) {
                     Point coords = new Point(x, y);
-                    if (eliminateRowCandidates(value, coords, grid))
-                        placedNumber = true;
-                    if (eliminateColumnCandidates(value, coords, grid))
-                        placedNumber = true;
-                    if (eliminateSquareCandidates(value, coords, grid))
-                        placedNumber = true;
+
+                    Point rowPlacedCoords = eliminateRowCandidates(value, coords, grid);
+                    if (rowPlacedCoords != null)
+                        return rowPlacedCoords;
+
+                    Point columnPlacedCoords = eliminateColumnCandidates(value, coords, grid);
+                    if (columnPlacedCoords != null)
+                        return columnPlacedCoords;
+
+                    Point squarePlacedCoords = eliminateSquareCandidates(value, coords, grid);
+                    if (squarePlacedCoords != null)
+                        return squarePlacedCoords;
                 }
             }
         }
 
-        return placedNumber;
+        return null;
     }
 
-    private boolean eliminateRowCandidates(int value, Point coords, Cell[][] grid) {
-        boolean placedNumber = false;
-
+    private Point eliminateRowCandidates(int value, Point coords, Cell[][] grid) {
         for (int x = 0; x < grid[coords.y].length; x++) {
             Cell cell = grid[coords.y][x];
             if (cell.getValue() == 0 && cell.eliminateCandidate(value))
-                placedNumber = true;
+                return new Point(x, coords.y);
         }
 
-        return placedNumber;
+        return null;
     }
 
-    private boolean eliminateColumnCandidates(int value, Point coords, Cell[][] grid) {
-        boolean placedNumber = false;
-
+    private Point eliminateColumnCandidates(int value, Point coords, Cell[][] grid) {
         for (int y = 0; y < grid.length; y++) {
             Cell cell = grid[y][coords.x];
             if (cell.getValue() == 0 && cell.eliminateCandidate(value))
-                placedNumber = true;
+                return new Point(coords.x, y);
         }
 
-        return placedNumber;
+        return null;
     }
 
-    private boolean eliminateSquareCandidates(int value, Point coords, Cell[][] grid) {
-        boolean placedNumber = false;
-
+    private Point eliminateSquareCandidates(int value, Point coords, Cell[][] grid) {
         int xStart = coords.x / 3 * 3;
         int yStart = coords.y / 3 * 3;
         for (int y = yStart; y < yStart + 3; y++) {
             for (int x = xStart; x < xStart + 3; x++) {
                 Cell cell = grid[y][x];
-                if (cell.getValue() == 0 && cell.eliminateCandidate(value)) {
-                    placedNumber = true;
-                }
+                if (cell.getValue() == 0 && cell.eliminateCandidate(value))
+                    return new Point(x, y);
             }
         }
 
-        return placedNumber;
+        return null;
     }
 
     private Cell[][] bruteForceSolve(Cell[][] grid) {
@@ -289,6 +316,12 @@ public class Sudoku {
             System.out.print("\n");
         }
         System.out.println("\n");
+    }
+
+    private void printLog() {
+        for (LogEntry entry : log) {
+            System.out.println(entry);
+        }
     }
 
     private boolean isValidEntry(char c) {

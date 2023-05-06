@@ -5,12 +5,14 @@ import java.util.Scanner;
 public class Main {
     public static void main(String[] args) {
         Scanner scan = new Scanner(System.in);
-        String sudokuString = getSudokuString(scan);
+//        String sudokuString = getSudokuString(scan);
+//        Sudoku sudoku = new Sudoku(sudokuString);
 
-//        String testGame = "...9....3.....28....9..4572921....38....9....37....9641678..2....37.....2....9...";
-        Sudoku sudoku = new Sudoku(sudokuString);
-        sudoku.solve(SolveMode.BRUTE_FORCE);
-//        sudoku.solve(SolveMode.STEP_BY_STEP);
+        String testGame = "...9....3.....28....9..4572921....38....9....37....9641678..2....37.....2....9...";
+        Sudoku sudoku = new Sudoku(testGame);
+
+//        sudoku.solve(SolveMode.BRUTE_FORCE);
+        sudoku.solve(SolveMode.STEP_BY_STEP);
     }
 
     private static String getSudokuString(Scanner scan) {
