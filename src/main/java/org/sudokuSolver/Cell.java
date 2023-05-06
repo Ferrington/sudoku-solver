@@ -1,5 +1,6 @@
 package org.sudokuSolver;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -14,9 +15,9 @@ public class Cell {
     Cell(int value, boolean isGiven, boolean generateCandidates) {
         this.value = value;
         this.isGiven = isGiven;
+        this.candidates = new HashSet<>();
 
         if (generateCandidates) {
-            candidates = new HashSet<>();
             for (int i = 1; i <= 9; i++) {
                 candidates.add(i);
             }
@@ -25,6 +26,12 @@ public class Cell {
 
     Cell(int value, boolean isGiven) {
         this(value, isGiven, false);
+    }
+
+    Cell(int value, boolean isGiven, Set<Integer> candidates) {
+        this.value = value;
+        this.isGiven = isGiven;
+        this.candidates = candidates;
     }
 
     public int getValue() {
@@ -49,14 +56,20 @@ public class Cell {
         return candidates.contains(n);
     }
 
-    public boolean eliminateCandidate(int value) {
-        candidates.remove(value);
-
+    public int getFinalCandidate() {
         if (candidates.size() == 1) {
-            this.value = candidates.iterator().next();
-            return true;
+            return candidates.iterator().next();
         }
-        return false;
+
+        return 0;
+    }
+
+    public boolean eliminateCandidate(int value) {
+        return candidates.remove(value);
+    }
+
+    public boolean eliminateAllCandidatesExcept(int value) {
+        return candidates.retainAll(Collections.singleton(value));
     }
 
     @Override
