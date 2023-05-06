@@ -114,10 +114,10 @@ public class Sudoku {
     }
 
     private Point hiddenSingles(Cell[][] grid) {
-        // rows
-        for (int y = 0; y < grid.length; y++) {
+        // row
+        for (int y = 0; y < REGION_SIZE; y++) {
             Map<Integer, Integer> candidateTracker = new HashMap<>();
-            for (int x = 0; x < grid[y].length; x++) {
+            for (int x = 0; x < REGION_SIZE; x++) {
                 if (grid[y][x].getValue() != 0) continue;
 
                 Set<Integer> candidates = grid[y][x].getCandidates();
@@ -127,21 +127,62 @@ public class Sudoku {
             }
             for (Map.Entry<Integer, Integer> candidate : candidateTracker.entrySet()) {
                 if (candidate.getValue() == 1) {
-                    return resolveSingleCandidateInRow(y, candidate.getKey(), grid);
+                    return resolveSingleCandidateInRegion(new Point(0, y), candidate.getKey(), grid, Region.ROW);
+                }
+            }
+        }
+        
+        // column
+        for (int x = 0; x < REGION_SIZE; x++) {
+            Map<Integer, Integer> candidateTracker = new HashMap<>();
+            for (int y = 0; y < REGION_SIZE; y++) {
+                if (grid[y][x].getValue() != 0) continue;
+
+                Set<Integer> candidates = grid[y][x].getCandidates();
+                for (Integer candidate : candidates) {
+                    candidateTracker.merge(candidate, 1, Integer::sum);
+                }
+            }
+            for (Map.Entry<Integer, Integer> candidate : candidateTracker.entrySet()) {
+                if (candidate.getValue() == 1) {
+                    return resolveSingleCandidateInRegion(new Point(x, 0), candidate.getKey(), grid, Region.COLUMN);
                 }
             }
         }
 
+        // square
+        for (int square = 0; square < REGION_SIZE; square++) {
+            int startX = square * SQUARE_SIZE % REGION_SIZE;
+            int startY = square / SQUARE_SIZE * SQUARE_SIZE;
+            Point startCoords = new Point(startX, startY);
+            Map<Integer, Integer> candidateTracker = new HashMap<>();
+            for (int space = 0; space < REGION_SIZE; space++) {
+                Point coords = Region.SQUARE.getRelativeCoords(startCoords, space);
+                Cell cell = grid[coords.y][coords.x];
+                if (cell.getValue() != 0) continue;
 
+                Set<Integer> candidates = cell.getCandidates();
+                for (Integer candidate : candidates) {
+                    candidateTracker.merge(candidate, 1, Integer::sum);
+                }
+            }
+            for (Map.Entry<Integer, Integer> candidate : candidateTracker.entrySet()) {
+                if (candidate.getValue() == 1) {
+                    return resolveSingleCandidateInRegion(startCoords, candidate.getKey(), grid, Region.SQUARE);
+                }
+            }
+        }
 
         return null;
     }
 
-    private Point resolveSingleCandidateInRow(int y, int value, Cell[][] grid) {
-        for (int x = 0; x < grid[y].length; x++) {
-            if (grid[y][x].getValue() == 0 && grid[y][x].hasCandidate(value)) {
-                grid[y][x].setValue(value);
-                return new Point(x, y);
+    private Point resolveSingleCandidateInRegion(Point coords, int value, Cell[][] grid, Region region) {
+        for (int i = 0; i < REGION_SIZE; i++) {
+            Point cellCoords = region.getRelativeCoords(coords, i);
+            Cell cell = grid[cellCoords.y][cellCoords.x];
+            if (cell.getValue() == 0 && cell.hasCandidate(value)) {
+                cell.setValue(value);
+                return cellCoords;
             }
         }
 
@@ -149,8 +190,8 @@ public class Sudoku {
     }
 
     private Point eliminateCandidates(Cell[][] grid) {
-        for (int y = 0; y < grid.length; y++) {
-            for (int x = 0; x < grid[y].length; x++) {
+        for (int y = 0; y < REGION_SIZE; y++) {
+            for (int x = 0; x < REGION_SIZE; x++) {
                 int value = grid[y][x].getValue();
                 if (value == EMPTY) continue;
 
@@ -161,18 +202,6 @@ public class Sudoku {
                     if (placedCoords != null)
                         return placedCoords;
                 }
-
-//                Point rowPlacedCoords = eliminateRowCandidates(value, coords, grid);
-//                if (rowPlacedCoords != null)
-//                    return rowPlacedCoords;
-//
-//                Point columnPlacedCoords = eliminateColumnCandidates(value, coords, grid);
-//                if (columnPlacedCoords != null)
-//                    return columnPlacedCoords;
-//
-//                Point squarePlacedCoords = eliminateSquareCandidates(value, coords, grid);
-//                if (squarePlacedCoords != null)
-//                    return squarePlacedCoords;
             }
         }
 
@@ -185,40 +214,6 @@ public class Sudoku {
             Cell cell = grid[cellCoords.y][cellCoords.x];
             if (cell.getValue() == 0 && cell.eliminateCandidate(value))
                 return new Point(cellCoords.x, cellCoords.y);
-        }
-
-        return null;
-    }
-
-    private Point eliminateRowCandidates(int value, Point coords, Cell[][] grid) {
-        for (int x = 0; x < grid[coords.y].length; x++) {
-            Cell cell = grid[coords.y][x];
-            if (cell.getValue() == 0 && cell.eliminateCandidate(value))
-                return new Point(x, coords.y);
-        }
-
-        return null;
-    }
-
-    private Point eliminateColumnCandidates(int value, Point coords, Cell[][] grid) {
-        for (int y = 0; y < grid.length; y++) {
-            Cell cell = grid[y][coords.x];
-            if (cell.getValue() == 0 && cell.eliminateCandidate(value))
-                return new Point(coords.x, y);
-        }
-
-        return null;
-    }
-
-    private Point eliminateSquareCandidates(int value, Point coords, Cell[][] grid) {
-        int xStart = coords.x / 3 * 3;
-        int yStart = coords.y / 3 * 3;
-        for (int y = yStart; y < yStart + 3; y++) {
-            for (int x = xStart; x < xStart + 3; x++) {
-                Cell cell = grid[y][x];
-                if (cell.getValue() == 0 && cell.eliminateCandidate(value))
-                    return new Point(x, y);
-            }
         }
 
         return null;
@@ -280,8 +275,8 @@ public class Sudoku {
     }
 
     private Point findOpenCellLocation(Cell[][] grid) {
-        for (int y = 0; y < grid.length; y++) {
-            for (int x = 0; x < grid[y].length; x++) {
+        for (int y = 0; y < REGION_SIZE; y++) {
+            for (int x = 0; x < REGION_SIZE; x++) {
                 if (grid[y][x] == null)
                     return new Point(x, y);
             }
@@ -304,7 +299,7 @@ public class Sudoku {
     }
 
     private void printGridWithCandidates() {
-        for (int y = 0; y < grid.length; y++) {
+        for (int y = 0; y < REGION_SIZE; y++) {
             if (y % 3 == 0 && y > 0) {
                 String horizontalLine = "";
                 for (int i = 0; i < 51; i++) {
@@ -315,7 +310,7 @@ public class Sudoku {
                 System.out.print("\n");
             }
             for (int line = 0; line < 3; line++) {
-                for (int x = 0; x < grid[y].length; x++) {
+                for (int x = 0; x < REGION_SIZE; x++) {
                     if (x % 3 == 0 && x > 0)
                         System.out.print(" | ");
                     else if (x > 0)
@@ -345,7 +340,7 @@ public class Sudoku {
         System.out.println("\n");
     }
     private void printGrid() {
-        for (int y = 0; y < grid.length; y++) {
+        for (int y = 0; y < REGION_SIZE; y++) {
             if (y % 3 == 0 && y > 0) {
                 String horizontalLine = "";
                 for (int i = 0; i < 29; i++) {
@@ -353,7 +348,7 @@ public class Sudoku {
                 }
                 System.out.println(horizontalLine);
             }
-            for (int x = 0; x < grid[y].length; x++) {
+            for (int x = 0; x < REGION_SIZE; x++) {
                 if (x % 3 == 0 && x > 0)
                     System.out.print("| ");
 
@@ -379,8 +374,8 @@ public class Sudoku {
 
     private Cell[][] deepCloneGrid(Cell[][] grid) {
         Cell[][] clone = new Cell[9][9];
-        for (int y = 0; y < grid.length; y++) {
-            for (int x = 0; x < grid[y].length; x++) {
+        for (int y = 0; y < REGION_SIZE; y++) {
+            for (int x = 0; x < REGION_SIZE; x++) {
                 Cell cell = grid[y][x];
                 if (cell != null)
                     clone[y][x] = new Cell(cell.getValue(), cell.getIsGiven());
@@ -393,8 +388,8 @@ public class Sudoku {
     }
 
     private void addCandidates(Cell[][] grid) {
-        for (int y = 0; y < grid.length; y++) {
-            for (int x = 0; x < grid[y].length; x++) {
+        for (int y = 0; y < REGION_SIZE; y++) {
+            for (int x = 0; x < REGION_SIZE; x++) {
                 if (grid[y][x] == null)
                     grid[y][x] = new Cell(EMPTY, CANDIDATE, true);
             }
