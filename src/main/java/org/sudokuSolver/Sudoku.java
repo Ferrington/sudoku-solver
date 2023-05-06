@@ -1,10 +1,7 @@
 package org.sudokuSolver;
 
 import java.awt.Point;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 public class Sudoku {
     private Cell[][] grid;
@@ -13,9 +10,33 @@ public class Sudoku {
 
     final private boolean CANDIDATE = false;
     final private boolean GIVEN = true;
+
     final private int EMPTY = 0;
+    final private int REGION_SIZE = 9;
+    final static private int SQUARE_SIZE = 3;
 
+    enum Region {
+        ROW,
+        COLUMN,
+        SQUARE;
 
+        // i is expected to be between 0 and 8 inclusive
+        public Point getRelativeCoords(Point coords, int i) {
+            if (this == Region.ROW) {
+                return new Point(i, coords.y);
+            } else if (this == Region.COLUMN) {
+                return new Point(coords.x, i);
+            } else if (this == Region.SQUARE) {
+                int xStart = coords.x / SQUARE_SIZE * SQUARE_SIZE;
+                int x = xStart + (i % SQUARE_SIZE);
+                int yStart = coords.y / SQUARE_SIZE * SQUARE_SIZE;
+                int y = yStart + (i / SQUARE_SIZE);
+                return new Point(x, y);
+            }
+
+            return null;
+        }
+    }
 
     Sudoku(String sudokuString) {
         grid = createGridFromString(sudokuString);
@@ -52,7 +73,7 @@ public class Sudoku {
             cellPlaced = false;
 
             /*
-             This removes values from the candidate list in each cell
+             Removes values from the candidate list in each cell
              when they are clearly ruled out by a given value.
              If there is one candidate remaining, a number is placed into a cell
              and we continue to eliminate more candidates.
@@ -68,6 +89,10 @@ public class Sudoku {
                 continue;
             }
 
+            /*
+             Finds instances where a candidate has only one possible
+             placement in each row/column/square
+             */
             Point hiddenSinglesCoords = hiddenSingles(grid);
             if (hiddenSinglesCoords != null) {
                 cellPlaced = true;
@@ -89,6 +114,37 @@ public class Sudoku {
     }
 
     private Point hiddenSingles(Cell[][] grid) {
+        // rows
+        for (int y = 0; y < grid.length; y++) {
+            Map<Integer, Integer> candidateTracker = new HashMap<>();
+            for (int x = 0; x < grid[y].length; x++) {
+                if (grid[y][x].getValue() != 0) continue;
+
+                Set<Integer> candidates = grid[y][x].getCandidates();
+                for (Integer candidate : candidates) {
+                    candidateTracker.merge(candidate, 1, Integer::sum);
+                }
+            }
+            for (Map.Entry<Integer, Integer> candidate : candidateTracker.entrySet()) {
+                if (candidate.getValue() == 1) {
+                    return resolveSingleCandidateInRow(y, candidate.getKey(), grid);
+                }
+            }
+        }
+
+
+
+        return null;
+    }
+
+    private Point resolveSingleCandidateInRow(int y, int value, Cell[][] grid) {
+        for (int x = 0; x < grid[y].length; x++) {
+            if (grid[y][x].getValue() == 0 && grid[y][x].hasCandidate(value)) {
+                grid[y][x].setValue(value);
+                return new Point(x, y);
+            }
+        }
+
         return null;
     }
 
@@ -96,22 +152,39 @@ public class Sudoku {
         for (int y = 0; y < grid.length; y++) {
             for (int x = 0; x < grid[y].length; x++) {
                 int value = grid[y][x].getValue();
-                if (value != EMPTY) {
-                    Point coords = new Point(x, y);
+                if (value == EMPTY) continue;
 
-                    Point rowPlacedCoords = eliminateRowCandidates(value, coords, grid);
-                    if (rowPlacedCoords != null)
-                        return rowPlacedCoords;
+                Point coords = new Point(x, y);
 
-                    Point columnPlacedCoords = eliminateColumnCandidates(value, coords, grid);
-                    if (columnPlacedCoords != null)
-                        return columnPlacedCoords;
-
-                    Point squarePlacedCoords = eliminateSquareCandidates(value, coords, grid);
-                    if (squarePlacedCoords != null)
-                        return squarePlacedCoords;
+                for (Region region : Region.values()) {
+                    Point placedCoords = eliminateRegionCandidates(value, coords, grid, region);
+                    if (placedCoords != null)
+                        return placedCoords;
                 }
+
+//                Point rowPlacedCoords = eliminateRowCandidates(value, coords, grid);
+//                if (rowPlacedCoords != null)
+//                    return rowPlacedCoords;
+//
+//                Point columnPlacedCoords = eliminateColumnCandidates(value, coords, grid);
+//                if (columnPlacedCoords != null)
+//                    return columnPlacedCoords;
+//
+//                Point squarePlacedCoords = eliminateSquareCandidates(value, coords, grid);
+//                if (squarePlacedCoords != null)
+//                    return squarePlacedCoords;
             }
+        }
+
+        return null;
+    }
+
+    private Point eliminateRegionCandidates(int value, Point coords, Cell[][] grid, Region region) {
+        for (int i = 0; i < REGION_SIZE; i++) {
+            Point cellCoords = region.getRelativeCoords(coords, i);
+            Cell cell = grid[cellCoords.y][cellCoords.x];
+            if (cell.getValue() == 0 && cell.eliminateCandidate(value))
+                return new Point(cellCoords.x, cellCoords.y);
         }
 
         return null;
@@ -184,47 +257,23 @@ public class Sudoku {
 
     private Set<Integer> findCandidates(Point coords, Cell[][] grid) {
         Set<Integer> candidates = new HashSet<>();
-        for (int i = 1; i <= 9; i++) {
+        for (int i = 1; i <= REGION_SIZE; i++) {
             candidates.add(i);
         }
 
-        candidates.removeAll(findNumbersInRow(coords, grid));
-        candidates.removeAll(findNumbersInColumn(coords, grid));
-        candidates.removeAll(findNumbersInSquare(coords, grid));
+        for (Region region : Region.values()) {
+            candidates.removeAll(findGivensInRegion(coords, grid, region));
+        }
 
         return candidates;
     }
 
-    private Set<Integer> findNumbersInSquare(Point coords, Cell[][] grid) {
+    private Set<Integer> findGivensInRegion(Point coords, Cell[][] grid, Region region) {
         Set<Integer> results = new HashSet<>();
-        int xStart = coords.x / 3 * 3;
-        int yStart = coords.y / 3 * 3;
-        for (int y = yStart; y < yStart + 3; y++) {
-            for (int x = xStart; x < xStart + 3; x++) {
-                if (grid[y][x] != null)
-                    results.add(grid[y][x].getValue());
-
-            }
-        }
-
-        return results;
-    }
-
-    private Set<Integer> findNumbersInColumn(Point coords, Cell[][] grid) {
-        Set<Integer> results = new HashSet<>();
-        for (int y = 0; y < grid.length; y++) {
-            if (grid[y][coords.x] != null)
-                results.add(grid[y][coords.x].getValue());
-        }
-
-        return results;
-    }
-
-    private Set<Integer> findNumbersInRow(Point coords, Cell[][] grid) {
-        Set<Integer> results = new HashSet<>();
-        for (int x = 0; x < grid[coords.y].length; x++) {
-            if (grid[coords.y][x] != null)
-                results.add(grid[coords.y][x].getValue());
+        for (int i = 0; i < REGION_SIZE; i++) {
+            Point cellCoords = region.getRelativeCoords(coords, i);
+            if (grid[cellCoords.y][cellCoords.x] != null)
+                results.add(grid[cellCoords.y][cellCoords.x].getValue());
         }
 
         return results;
@@ -242,11 +291,11 @@ public class Sudoku {
     }
 
     private Cell[][] createGridFromString(String str) {
-        Cell[][] result = new Cell[9][9];
+        Cell[][] result = new Cell[REGION_SIZE][REGION_SIZE];
         for (int i = 0; i < str.length(); i++) {
             char c = str.charAt(i);
-            int y = i / 9 % 9;
-            int x = i % 9;
+            int y = i / REGION_SIZE % REGION_SIZE;
+            int x = i % REGION_SIZE;
             if (isValidEntry(c))
                 result[y][x] = new Cell(Character.getNumericValue(c), GIVEN);
         }

@@ -31,8 +31,16 @@ public class Cell {
         return value;
     }
 
+    public void setValue(int value) {
+        this.value = value;
+    }
+
     public boolean getIsGiven() {
         return isGiven;
+    }
+
+    public Set<Integer> getCandidates() {
+        return candidates;
     }
 
     public boolean hasCandidate(int n) {

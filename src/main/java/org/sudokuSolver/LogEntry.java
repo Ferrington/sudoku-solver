@@ -18,7 +18,7 @@ public class LogEntry {
         return String.format(
             "%s placed at %s by %s",
             value,
-            coords,
+            String.format("[%s, %s]", coords.x + 1, 9 - coords.y),
             method
         );
     }
