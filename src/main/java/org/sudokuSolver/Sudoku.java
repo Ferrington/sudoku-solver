@@ -96,7 +96,7 @@ public class Sudoku {
                 gridChanged = true;
                 log.add(new LogEntry(
                     deepCloneGrid(grid),
-                    "Eliminated Candidates"
+                    "Eliminated Obvious Candidates"
                 ));
                 continue;
             }
@@ -117,16 +117,102 @@ public class Sudoku {
             }
 
             /*
-             Naked Pair / Triple
+             Naked Pair
              */
+            if (nakedPair(grid)) {
+                gridChanged = true;
+                log.add(new LogEntry(
+                    deepCloneGrid(grid),
+                    "2) Naked Pair"
+                ));
+                continue;
+            }
 
-            // naked pairs/triples
+            // naked triples
             // hidden pairs/triples
             // naked/hidden quads
             // pointing pairs
             // box/line reduction
         }
         return grid;
+    }
+
+    private boolean nakedPair(Cell[][] grid) {
+        boolean eliminatedCandidates = false;
+        // row
+        for (int y = 0; y < REGION_SIZE; y++) {
+            Map<Set<Integer>, Integer> pairCounts = new HashMap<>();
+            for (int x = 0; x < REGION_SIZE; x++) {
+                if (grid[y][x].getValue() != 0) continue;
+
+                Set<Integer> candidates = grid[y][x].getCandidates();
+                if (candidates.size() == 2)
+                    pairCounts.merge(candidates, 1, Integer::sum);
+            }
+            for (Map.Entry<Set<Integer>, Integer> candidate : pairCounts.entrySet()) {
+                if (candidate.getValue() == 2 && resolveNakedPairInRegion(new Point(0, y), candidate.getKey(), grid, Region.ROW)) {
+                    eliminatedCandidates = true;
+                }
+            }
+        }
+
+        // column
+        for (int x = 0; x < REGION_SIZE; x++) {
+            Map<Set<Integer>, Integer> pairCounts = new HashMap<>();
+            for (int y = 0; y < REGION_SIZE; y++) {
+                if (grid[y][x].getValue() != 0) continue;
+
+                Set<Integer> candidates = grid[y][x].getCandidates();
+                if (candidates.size() == 2)
+                    pairCounts.merge(candidates, 1, Integer::sum);
+            }
+            for (Map.Entry<Set<Integer>, Integer> candidate : pairCounts.entrySet()) {
+                if (candidate.getValue() == 2 && resolveNakedPairInRegion(new Point(x, 0), candidate.getKey(), grid, Region.COLUMN)) {
+                    eliminatedCandidates = true;
+                }
+            }
+        }
+
+        // square
+        for (int square = 0; square < REGION_SIZE; square++) {
+            int startX = square * SQUARE_SIZE % REGION_SIZE;
+            int startY = square / SQUARE_SIZE * SQUARE_SIZE;
+            Point startCoords = new Point(startX, startY);
+            Map<Set<Integer>, Integer> pairCounts = new HashMap<>();
+            for (int space = 0; space < REGION_SIZE; space++) {
+                Point coords = Region.SQUARE.getRelativeCoords(startCoords, space);
+                Cell cell = grid[coords.y][coords.x];
+                if (cell.getValue() != 0) continue;
+
+                Set<Integer> candidates = cell.getCandidates();
+                if (candidates.size() == 2)
+                    pairCounts.merge(candidates, 1, Integer::sum);
+            }
+            for (Map.Entry<Set<Integer>, Integer> candidate : pairCounts.entrySet()) {
+                if (candidate.getValue() == 2 && resolveNakedPairInRegion(startCoords, candidate.getKey(), grid, Region.SQUARE)) {
+                    eliminatedCandidates = true;
+                }
+            }
+        }
+
+
+        return eliminatedCandidates;
+    }
+
+    private boolean resolveNakedPairInRegion(Point coords, Set<Integer> candidates, Cell[][] grid, Region region) {
+        boolean eliminatedCandidates = false;
+        for (int i = 0; i < REGION_SIZE; i++) {
+            Point cellCoords = region.getRelativeCoords(coords, i);
+            Cell cell = grid[cellCoords.y][cellCoords.x];
+            if (cell.getValue() == 0 && !cell.getCandidates().equals(candidates)) {
+                for (Integer candidate : candidates) {
+                    if (cell.eliminateCandidate(candidate))
+                        eliminatedCandidates = true;
+                }
+            }
+        }
+
+        return eliminatedCandidates;
     }
 
     private boolean hiddenSingles(Cell[][] grid) {

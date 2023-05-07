@@ -8,7 +8,7 @@ public class Main {
 //        String sudokuString = getSudokuString(scan);
 //        Sudoku sudoku = new Sudoku(sudokuString);
 
-        String testGame = "...9....3.....28....9..4572921....38....9....37....9641678..2....37.....2....9...";
+        String testGame = "4......38..2..41....53..24..7.6.9..4.2.....7.6..7.3.9..57..83....39..4..24......9";
         Sudoku sudoku = new Sudoku(testGame);
 
 //        sudoku.solve(SolveMode.BRUTE_FORCE);
