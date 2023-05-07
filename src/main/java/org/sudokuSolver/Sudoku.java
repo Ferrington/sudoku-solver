@@ -8,6 +8,8 @@ public class Sudoku {
     long recursionCount = 0;
     List<LogEntry> log;
 
+    final Map<Region, List<List<Point>>> coordsByRegion;
+
     final private boolean CANDIDATE = false;
     final private boolean GIVEN = true;
 
@@ -41,6 +43,7 @@ public class Sudoku {
     Sudoku(String sudokuString) {
         grid = createGridFromString(sudokuString);
         log = new ArrayList<>();
+        coordsByRegion = generateCoordsByRegion();
         printGrid();
     }
 
@@ -119,7 +122,7 @@ public class Sudoku {
             /*
              Naked Pair
              */
-            if (nakedPair(grid)) {
+            if (nakedPairs(grid)) {
                 gridChanged = true;
                 log.add(new LogEntry(
                     deepCloneGrid(grid),
@@ -137,64 +140,29 @@ public class Sudoku {
         return grid;
     }
 
-    private boolean nakedPair(Cell[][] grid) {
+    private boolean nakedPairs(Cell[][] grid) {
         boolean eliminatedCandidates = false;
-        // row
-        for (int y = 0; y < REGION_SIZE; y++) {
-            Map<Set<Integer>, Integer> pairCounts = new HashMap<>();
-            for (int x = 0; x < REGION_SIZE; x++) {
-                if (grid[y][x].getValue() != 0) continue;
 
-                Set<Integer> candidates = grid[y][x].getCandidates();
-                if (candidates.size() == 2)
-                    pairCounts.merge(candidates, 1, Integer::sum);
-            }
-            for (Map.Entry<Set<Integer>, Integer> candidate : pairCounts.entrySet()) {
-                if (candidate.getValue() == 2 && resolveNakedPairInRegion(new Point(0, y), candidate.getKey(), grid, Region.ROW)) {
-                    eliminatedCandidates = true;
+        for (Map.Entry<Region, List<List<Point>>> e : coordsByRegion.entrySet()) {
+            Region region = e.getKey();
+            List<List<Point>> rows = e.getValue();
+            for (List<Point> row : rows) {
+                Map<Set<Integer>, Integer> pairCounts = new HashMap<>();
+                for (Point coords : row) {
+                    Cell cell = grid[coords.y][coords.x];
+                    if (cell.getValue() != 0) continue;
+
+                    Set<Integer> candidates = cell.getCandidates();
+                    if (candidates.size() == 2)
+                        pairCounts.merge(candidates, 1, Integer::sum);
+                }
+                for (Map.Entry<Set<Integer>, Integer> candidate : pairCounts.entrySet()) {
+                    if (candidate.getValue() == 2 && resolveNakedPairInRegion(row.get(0), candidate.getKey(), grid, region)) {
+                        eliminatedCandidates = true;
+                    }
                 }
             }
         }
-
-        // column
-        for (int x = 0; x < REGION_SIZE; x++) {
-            Map<Set<Integer>, Integer> pairCounts = new HashMap<>();
-            for (int y = 0; y < REGION_SIZE; y++) {
-                if (grid[y][x].getValue() != 0) continue;
-
-                Set<Integer> candidates = grid[y][x].getCandidates();
-                if (candidates.size() == 2)
-                    pairCounts.merge(candidates, 1, Integer::sum);
-            }
-            for (Map.Entry<Set<Integer>, Integer> candidate : pairCounts.entrySet()) {
-                if (candidate.getValue() == 2 && resolveNakedPairInRegion(new Point(x, 0), candidate.getKey(), grid, Region.COLUMN)) {
-                    eliminatedCandidates = true;
-                }
-            }
-        }
-
-        // square
-        for (int square = 0; square < REGION_SIZE; square++) {
-            int startX = square * SQUARE_SIZE % REGION_SIZE;
-            int startY = square / SQUARE_SIZE * SQUARE_SIZE;
-            Point startCoords = new Point(startX, startY);
-            Map<Set<Integer>, Integer> pairCounts = new HashMap<>();
-            for (int space = 0; space < REGION_SIZE; space++) {
-                Point coords = Region.SQUARE.getRelativeCoords(startCoords, space);
-                Cell cell = grid[coords.y][coords.x];
-                if (cell.getValue() != 0) continue;
-
-                Set<Integer> candidates = cell.getCandidates();
-                if (candidates.size() == 2)
-                    pairCounts.merge(candidates, 1, Integer::sum);
-            }
-            for (Map.Entry<Set<Integer>, Integer> candidate : pairCounts.entrySet()) {
-                if (candidate.getValue() == 2 && resolveNakedPairInRegion(startCoords, candidate.getKey(), grid, Region.SQUARE)) {
-                    eliminatedCandidates = true;
-                }
-            }
-        }
-
 
         return eliminatedCandidates;
     }
@@ -215,63 +183,51 @@ public class Sudoku {
         return eliminatedCandidates;
     }
 
+    private Map<Region, List<List<Point>>> generateCoordsByRegion() {
+        Map<Region, List<List<Point>>> result = new HashMap<>();
+        for (Region region : Region.values()) {
+            List<List<Point>> regionCoords = new ArrayList<>();
+            for (int i = 0; i < REGION_SIZE; i++) {
+                List<Point> row = new ArrayList<>();
+                int startX = i * SQUARE_SIZE % REGION_SIZE;
+                int startY = i / SQUARE_SIZE * SQUARE_SIZE;
+                for (int j = 0; j < REGION_SIZE; j++) {
+                    if (region == Region.ROW)
+                        row.add(region.getRelativeCoords(new Point(j, i), j));
+                    else if (region == Region.COLUMN)
+                        row.add(region.getRelativeCoords(new Point(i, j), j));
+                    else if (region == Region.SQUARE)
+                        row.add(region.getRelativeCoords(new Point(startX, startY), j));
+                }
+                regionCoords.add(row);
+            }
+            result.put(region, regionCoords);
+        }
+
+        return result;
+    }
+
     private boolean hiddenSingles(Cell[][] grid) {
         boolean eliminatedCandidates = false;
-        // row
-        for (int y = 0; y < REGION_SIZE; y++) {
-            Map<Integer, Integer> candidateTracker = new HashMap<>();
-            for (int x = 0; x < REGION_SIZE; x++) {
-                if (grid[y][x].getValue() != 0) continue;
 
-                Set<Integer> candidates = grid[y][x].getCandidates();
-                for (Integer candidate : candidates) {
-                    candidateTracker.merge(candidate, 1, Integer::sum);
-                }
-            }
-            for (Map.Entry<Integer, Integer> candidate : candidateTracker.entrySet()) {
-                if (candidate.getValue() == 1 && resolveSingleCandidateInRegion(new Point(0, y), candidate.getKey(), grid, Region.ROW)) {
-                    eliminatedCandidates = true;
-                }
-            }
-        }
-        
-        // column
-        for (int x = 0; x < REGION_SIZE; x++) {
-            Map<Integer, Integer> candidateTracker = new HashMap<>();
-            for (int y = 0; y < REGION_SIZE; y++) {
-                if (grid[y][x].getValue() != 0) continue;
+        for (Map.Entry<Region, List<List<Point>>> e : coordsByRegion.entrySet()) {
+            Region region = e.getKey();
+            List<List<Point>> rows = e.getValue();
+            for (List<Point> row : rows) {
+                Map<Integer, Integer> candidateTracker = new HashMap<>();
+                for (Point coords : row) {
+                    Cell cell = grid[coords.y][coords.x];
+                    if (cell.getValue() != 0) continue;
 
-                Set<Integer> candidates = grid[y][x].getCandidates();
-                for (Integer candidate : candidates) {
-                    candidateTracker.merge(candidate, 1, Integer::sum);
+                    Set<Integer> candidates = cell.getCandidates();
+                    for (Integer candidate : candidates) {
+                        candidateTracker.merge(candidate, 1, Integer::sum);
+                    }
                 }
-            }
-            for (Map.Entry<Integer, Integer> candidate : candidateTracker.entrySet()) {
-                if (candidate.getValue() == 1 && resolveSingleCandidateInRegion(new Point(x, 0), candidate.getKey(), grid, Region.COLUMN)) {
-                    eliminatedCandidates = true;
-                }
-            }
-        }
-
-        // square
-        for (int square = 0; square < REGION_SIZE; square++) {
-            int startX = square * SQUARE_SIZE % REGION_SIZE;
-            int startY = square / SQUARE_SIZE * SQUARE_SIZE;
-            Point startCoords = new Point(startX, startY);
-            Map<Integer, Integer> candidateTracker = new HashMap<>();
-            for (int space = 0; space < REGION_SIZE; space++) {
-                Point coords = Region.SQUARE.getRelativeCoords(startCoords, space);
-                Cell cell = grid[coords.y][coords.x];
-                if (cell.getValue() != 0) continue;
-
-                Set<Integer> candidates = cell.getCandidates();
-                for (Integer candidate : candidates) {
-                    candidateTracker.merge(candidate, 1, Integer::sum);
-                }
-            }
-            for (Map.Entry<Integer, Integer> candidate : candidateTracker.entrySet()) {
-                if (candidate.getValue() == 1 && resolveSingleCandidateInRegion(startCoords, candidate.getKey(), grid, Region.SQUARE)) {
-                    eliminatedCandidates = true;
+                for (Map.Entry<Integer, Integer> candidate : candidateTracker.entrySet()) {
+                    if (candidate.getValue() == 1 && resolveSingleCandidateInRegion(row.get(0), candidate.getKey(), grid, region)) {
+                        eliminatedCandidates = true;
+                    }
                 }
             }
         }
